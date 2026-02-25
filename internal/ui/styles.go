@@ -75,4 +75,12 @@ var (
 	borderDimStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorDimmed)
+
+	previewHeaderStyle = lipgloss.NewStyle().
+				Foreground(colorGray).
+				Bold(true)
+
+	previewContentStyle = lipgloss.NewStyle().
+				Foreground(colorDimmed).
+				PaddingLeft(1)
 )

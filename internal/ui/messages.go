@@ -37,3 +37,10 @@ type jumpedMsg struct {
 type newWorkspaceResultMsg struct {
 	err error
 }
+
+// previewResultMsg carries captured pane content for the preview panel.
+type previewResultMsg struct {
+	paneID  string
+	content string
+	err     error
+}

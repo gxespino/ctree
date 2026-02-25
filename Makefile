@@ -2,6 +2,7 @@
 
 BINARY_NAME=cmux
 TOGGLE_SCRIPT=cmux-toggle
+AUTO_OPEN_SCRIPT=cmux-auto-open
 INSTALL_DIR=$(HOME)/.local/bin
 
 build:
@@ -11,7 +12,8 @@ install: build
 	mkdir -p $(INSTALL_DIR)
 	cp bin/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
 	cp scripts/cmux-toggle.sh $(INSTALL_DIR)/$(TOGGLE_SCRIPT)
-	chmod +x $(INSTALL_DIR)/$(TOGGLE_SCRIPT)
+	cp scripts/cmux-auto-open.sh $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)
+	chmod +x $(INSTALL_DIR)/$(TOGGLE_SCRIPT) $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)
 	@echo ""
 	@echo "Installed to $(INSTALL_DIR)"
 	@echo "Add to ~/.tmux.conf:"

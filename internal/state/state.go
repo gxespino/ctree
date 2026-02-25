@@ -64,3 +64,24 @@ func newState() *PersistentState {
 		Version:  1,
 	}
 }
+
+// previewFlagPath is a zero-byte file whose existence means "preview on".
+func previewFlagPath() string {
+	return filepath.Join(configDir(), "preview")
+}
+
+// SetPreview persists the preview toggle so all cmux instances stay in sync.
+func SetPreview(on bool) {
+	if on {
+		_ = os.MkdirAll(configDir(), 0o755)
+		_ = os.WriteFile(previewFlagPath(), nil, 0o644)
+	} else {
+		_ = os.Remove(previewFlagPath())
+	}
+}
+
+// GetPreview reads the shared preview toggle state.
+func GetPreview() bool {
+	_, err := os.Stat(previewFlagPath())
+	return err == nil
+}

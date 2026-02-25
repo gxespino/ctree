@@ -8,21 +8,33 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gxespino/cmux/internal/detect"
 	"github.com/gxespino/cmux/internal/model"
 	"github.com/gxespino/cmux/internal/state"
+	"github.com/gxespino/cmux/internal/tmux"
 )
+
+// idleThreshold is how many consecutive Idle detections are needed before
+// transitioning out of Working. Prevents false Idle from pane scraping
+// mid-redraw from triggering Working → Unread → Done cascades.
+const idleThreshold = 3
 
 // App is the top-level Bubble Tea model.
 type App struct {
 	list         list.Model
 	windows      []model.Window
 	prevStatuses map[string]model.Status // windowID → last known status
+	idleCounts   map[string]int          // windowID → consecutive Idle polls
 	width        int
 	height       int
 	keys         keyMap
 	state        *state.PersistentState
 	err          error
 	focused      bool
+
+	showPreview    bool
+	previewContent string
+	previewPaneID  string
 }
 
 // NewApp creates a new App.
@@ -37,12 +49,26 @@ func NewApp(s *state.PersistentState) App {
 	l.Styles.Title = headerStyle
 	l.SetStatusBarItemName("session", "sessions")
 
+	// Bootstrap: detect current statuses so reopening the sidebar
+	// doesn't reset everything to Idle.
+	prev := make(map[string]model.Status)
+	if panes, err := tmux.ListAllPanes(); err == nil {
+		detect.EnrichAll(panes)
+		for _, w := range panes {
+			if w.IsClaudePane {
+				prev[w.WindowID] = w.Status
+			}
+		}
+	}
+
 	return App{
 		list:         l,
 		keys:         defaultKeyMap(),
 		state:        s,
-		prevStatuses: make(map[string]model.Status),
+		prevStatuses: prev,
+		idleCounts:   make(map[string]int),
 		focused:      true,
+		showPreview:  state.GetPreview(),
 	}
 }
 
@@ -58,8 +84,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
-		// Reserve space for border (2 top/bottom) + footer (2 lines)
-		a.list.SetSize(msg.Width-2, msg.Height-6)
+		a.updateListSize()
 		return a, nil
 
 	case tickMsg:
@@ -81,6 +106,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.err = msg.err
 		}
 		return a, pollTmuxCmd()
+
+	case previewResultMsg:
+		if msg.err != nil || msg.paneID != a.previewPaneID {
+			return a, nil
+		}
+		a.previewContent = msg.content
+		return a, nil
 
 	case errMsg:
 		a.err = msg.err
@@ -120,6 +152,18 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.NewWorkspace):
 		return a, newWorkspaceCmd()
 
+	case key.Matches(msg, a.keys.Preview):
+		a.showPreview = !a.showPreview
+		state.SetPreview(a.showPreview)
+		a.updateListSize()
+		if a.showPreview {
+			if item, ok := a.list.SelectedItem().(model.Window); ok {
+				a.previewPaneID = item.PaneID
+				return a, capturePreviewCmd(item.PaneID, a.previewHeight(), a.width-4)
+			}
+		}
+		return a, nil
+
 	case key.Matches(msg, a.keys.Refresh):
 		return a, pollTmuxCmd()
 
@@ -132,8 +176,19 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Delegate to bubbles list for j/k/arrow nav and / filtering
+	prevIndex := a.list.Index()
 	var cmd tea.Cmd
 	a.list, cmd = a.list.Update(msg)
+
+	// If selection changed while preview is open, fetch new preview
+	if a.showPreview && a.list.Index() != prevIndex {
+		if item, ok := a.list.SelectedItem().(model.Window); ok {
+			a.previewPaneID = item.PaneID
+			a.previewContent = ""
+			return a, tea.Batch(cmd, capturePreviewCmd(item.PaneID, a.previewHeight(), a.width-4))
+		}
+	}
+
 	return a, cmd
 }
 
@@ -144,6 +199,14 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	a.err = nil
+
+	// Sync preview toggle from disk so all cmux instances stay in sync
+	if diskPreview := state.GetPreview(); diskPreview != a.showPreview {
+		a.showPreview = diskPreview
+		a.previewContent = ""
+		a.updateListSize()
+	}
+
 	incoming := msg.windows
 
 	// State machine for idle sessions. The detect layer returns Working or Idle.
@@ -158,8 +221,9 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	for i := range incoming {
 		w := &incoming[i]
 
-		// Working and Error pass through from the detect layer untouched.
+		// Working and Error pass through untouched; reset idle counter.
 		if w.Status != model.StatusIdle {
+			delete(a.idleCounts, w.WindowID)
 			continue
 		}
 
@@ -167,7 +231,17 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case hasPrev && prev == model.StatusWorking:
-			// Just finished working → mark Unread, clear "seen" flag
+			// Debounce: require consecutive Idle detections before
+			// believing Claude actually stopped. Pane scraping can
+			// return false Idle during redraws.
+			a.idleCounts[w.WindowID]++
+			if a.idleCounts[w.WindowID] < idleThreshold {
+				w.Status = model.StatusWorking
+				continue
+			}
+			delete(a.idleCounts, w.WindowID)
+
+			// Confirmed idle → mark Unread, clear "seen" flag
 			w.Status = model.StatusUnread
 			delete(a.state.LastSeen, w.Target())
 
@@ -264,6 +338,15 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, pollGitCmd(w.WindowID, w.WorkingDir))
 		}
 	}
+
+	// Refresh preview if open
+	if a.showPreview {
+		if item, ok := a.list.SelectedItem().(model.Window); ok {
+			a.previewPaneID = item.PaneID
+			cmds = append(cmds, capturePreviewCmd(item.PaneID, a.previewHeight(), a.width-4))
+		}
+	}
+
 	cmds = append(cmds, tickCmd())
 
 	return a, tea.Batch(cmds...)
@@ -310,6 +393,30 @@ func (a App) handleGitResult(msg gitResultMsg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+// previewHeight returns how many lines the preview panel content area gets.
+func (a App) previewHeight() int {
+	// border(2) + footer(2) + preview header(1) = 5 lines overhead
+	available := a.height - 7
+	if available < 4 {
+		return 4
+	}
+	return available / 2
+}
+
+// updateListSize recalculates the list dimensions based on whether preview is shown.
+func (a *App) updateListSize() {
+	if a.showPreview {
+		// List gets top half: total - border(2) - footer(2) - previewHeader(1) - previewContent
+		listHeight := a.height - 6 - a.previewHeight() - 1
+		if listHeight < 4 {
+			listHeight = 4
+		}
+		a.list.SetSize(a.width-2, listHeight)
+	} else {
+		a.list.SetSize(a.width-2, a.height-6)
+	}
+}
+
 func (a App) View() string {
 	var b strings.Builder
 	b.WriteString(a.list.View())
@@ -320,7 +427,31 @@ func (a App) View() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(footerStyle.Render("j/k nav  enter jump  n new  q quit"))
+	if a.showPreview {
+		// Divider line with label
+		divider := previewHeaderStyle.Render("── Preview ")
+		pad := a.width - 4 - len("── Preview ")
+		if pad > 0 {
+			divider += previewHeaderStyle.Render(strings.Repeat("─", pad))
+		}
+		b.WriteString(divider)
+		b.WriteString("\n")
+
+		// Preview content, truncated to fit
+		lines := strings.Split(a.previewContent, "\n")
+		maxLines := a.previewHeight()
+		if len(lines) > maxLines {
+			lines = lines[len(lines)-maxLines:]
+		}
+		for _, line := range lines {
+			b.WriteString(previewContentStyle.Render(line))
+			b.WriteString("\n")
+		}
+
+		b.WriteString(footerStyle.Render("j/k nav  enter jump  p close  q quit"))
+	} else {
+		b.WriteString(footerStyle.Render("j/k nav  enter jump  p preview  q quit"))
+	}
 
 	content := b.String()
 

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,7 +15,36 @@ import (
 
 var pollCount int
 
-const pollInterval = 1500 * time.Millisecond
+const pollInterval = 250 * time.Millisecond
+
+// capturePreviewCmd fetches visible pane content for the preview panel.
+func capturePreviewCmd(paneID string, maxLines, maxWidth int) tea.Cmd {
+	return func() tea.Msg {
+		raw, err := tmux.CapturePaneVisible(paneID)
+		if err != nil {
+			return previewResultMsg{paneID: paneID, err: err}
+		}
+
+		lines := strings.Split(raw, "\n")
+
+		// Take the last maxLines lines (most recent output)
+		if len(lines) > maxLines {
+			lines = lines[len(lines)-maxLines:]
+		}
+
+		// Truncate each line to fit the preview width
+		for i, line := range lines {
+			if len(line) > maxWidth {
+				lines[i] = line[:maxWidth]
+			}
+		}
+
+		return previewResultMsg{
+			paneID:  paneID,
+			content: strings.Join(lines, "\n"),
+		}
+	}
+}
 
 // tickCmd schedules the next poll after a delay.
 func tickCmd() tea.Cmd {
