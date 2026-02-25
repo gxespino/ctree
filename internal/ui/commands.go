@@ -7,9 +7,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gxespino/cmux/internal/detect"
 	"github.com/gxespino/cmux/internal/git"
+	"github.com/gxespino/cmux/internal/hookdata"
 	"github.com/gxespino/cmux/internal/model"
 	"github.com/gxespino/cmux/internal/tmux"
 )
+
+var pollCount int
 
 const pollInterval = 1500 * time.Millisecond
 
@@ -23,12 +26,18 @@ func tickCmd() tea.Cmd {
 // pollTmuxCmd discovers tmux panes and enriches them with Claude status.
 func pollTmuxCmd() tea.Cmd {
 	return func() tea.Msg {
+		// Periodically clean up stale hook status files (~every 15s)
+		pollCount++
+		if pollCount%10 == 0 {
+			hookdata.Cleanup(5 * time.Minute)
+		}
+
 		allPanes, err := tmux.ListAllPanes()
 		if err != nil {
 			return errMsg{err}
 		}
 
-		// Single-pass detection: one `ps` call, then capture-pane per Claude window
+		// Single-pass detection: prefers hook status, falls back to pane scraping
 		detect.EnrichAll(allPanes)
 
 		// Filter to only Claude panes

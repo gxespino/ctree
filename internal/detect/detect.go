@@ -4,10 +4,16 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/gxespino/cmux/internal/hookdata"
 	"github.com/gxespino/cmux/internal/model"
 	"github.com/gxespino/cmux/internal/tmux"
 )
+
+// hookFreshness is how old a hook status file can be before we fall back
+// to pane scraping. Must be comfortably longer than the poll interval.
+const hookFreshness = 30 * time.Second
 
 // processInfo holds parsed ps output for one process.
 type processInfo struct {
@@ -67,12 +73,15 @@ func findClaudeDescendant(parentPID int, procs map[int]processInfo, children map
 }
 
 // EnrichAll detects Claude status for all windows in a single pass.
-// This is much more efficient than calling pgrep per-window.
+// Prefers hook-based status when available, falls back to pane scraping.
 func EnrichAll(windows []model.Window) {
 	procs, children := buildProcessTable()
 	if procs == nil {
 		return
 	}
+
+	// Read all hook statuses in one pass
+	hookStatuses := hookdata.ReadAll()
 
 	for i := range windows {
 		w := &windows[i]
@@ -85,7 +94,33 @@ func EnrichAll(windows []model.Window) {
 
 		w.IsClaudePane = true
 		w.ClaudePID = claudePID
+
+		// Prefer hook-based status if available and fresh
+		if hs, ok := hookStatuses[w.PaneID]; ok && !hs.IsStale(hookFreshness) {
+			w.Status = mapHookStatus(hs.Status, claudePID, procs)
+			continue
+		}
+
+		// Fallback: pane scraping
 		w.Status = detectStatusFromPane(w.PaneID, claudePID, procs)
+	}
+}
+
+// mapHookStatus converts a hook status string to a model.Status,
+// always checking process liveness first.
+func mapHookStatus(hookStatus string, claudePID int, procs map[int]processInfo) model.Status {
+	if _, alive := procs[claudePID]; !alive {
+		return model.StatusExited
+	}
+	switch hookStatus {
+	case "working":
+		return model.StatusWorking
+	case "idle":
+		return model.StatusIdle
+	case "stopped":
+		return model.StatusExited
+	default:
+		return model.StatusUnknown
 	}
 }
 

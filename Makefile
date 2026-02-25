@@ -1,4 +1,4 @@
-.PHONY: build install clean test
+.PHONY: build install setup clean test
 
 BINARY_NAME=cmux
 TOGGLE_SCRIPT=cmux-toggle
@@ -16,6 +16,9 @@ install: build
 	@echo "Installed to $(INSTALL_DIR)"
 	@echo "Add to ~/.tmux.conf:"
 	@echo "  bind-key p run-shell \"$(INSTALL_DIR)/$(TOGGLE_SCRIPT)\""
+
+setup: install
+	$(INSTALL_DIR)/$(BINARY_NAME) setup
 
 clean:
 	rm -rf bin/ $(BINARY_NAME)
