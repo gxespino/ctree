@@ -38,6 +38,24 @@ func SendMessage(cfg *Config, text string) (string, error) {
 	return ts, nil
 }
 
+// ReplyInThread posts a reply in an existing thread.
+func ReplyInThread(cfg *Config, threadTS, text string) error {
+	payload := map[string]any{
+		"channel":   cfg.ChannelID,
+		"text":      text,
+		"thread_ts": threadTS,
+	}
+	resp, err := postJSON(cfg.BotToken, slackBaseURL+"/chat.postMessage", payload)
+	if err != nil {
+		return fmt.Errorf("chat.postMessage: %w", err)
+	}
+	if ok, _ := resp["ok"].(bool); !ok {
+		errMsg, _ := resp["error"].(string)
+		return fmt.Errorf("chat.postMessage: %s", errMsg)
+	}
+	return nil
+}
+
 // WaitForReply polls for a threaded reply from a human user.
 // Returns the reply text, or "" if timeout is reached (not an error).
 func WaitForReply(cfg *Config, threadTS string, timeout time.Duration) (string, error) {

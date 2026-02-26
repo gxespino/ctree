@@ -101,10 +101,18 @@ func handlePermissionRequest(input hookInput) string {
 		return ""
 	}
 	if reply == "" {
-		return "" // timeout, fall through to terminal
+		_ = slack.ReplyInThread(cfg, threadTS, "Timed out — falling back to terminal.")
+		return ""
 	}
 
-	return parseDecision(reply)
+	decision := parseDecision(reply)
+	if decision == "allow" {
+		_ = slack.ReplyInThread(cfg, threadTS, "Approved — proceeding.")
+	} else {
+		_ = slack.ReplyInThread(cfg, threadTS, "Denied.")
+	}
+
+	return decision
 }
 
 // handleNotification sends a one-way Slack message when Claude needs input.
