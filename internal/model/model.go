@@ -25,7 +25,7 @@ func (s Status) String() string {
 	case StatusWorking:
 		return "Working…"
 	case StatusPaused:
-		return "Paused"
+		return "Needs Input"
 	case StatusIdle:
 		return "Idle"
 	case StatusUnread:
