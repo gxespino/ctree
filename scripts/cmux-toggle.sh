@@ -34,9 +34,13 @@ else
     current_window=$(tmux display-message -p '#{window_id}')
 
     while read -r window_id; do
-        # Select the target window, create the sidebar, then move back
         tmux split-window -hb -t "$window_id" -l "$SIDEBAR_WIDTH" \
             "printf '\\033]2;${CMUX_PANE_TITLE}\\033\\\\'; exec ${cmux_bin}"
+        # Focus back to the main (non-sidebar) pane in this window
+        main_pane=$(tmux list-panes -t "$window_id" -F '#{pane_id} #{pane_title}' | grep -v "$CMUX_PANE_TITLE" | head -1 | cut -d' ' -f1)
+        if [ -n "$main_pane" ]; then
+            tmux select-pane -t "$main_pane"
+        fi
     done < <(tmux list-windows -a -F '#{window_id}')
 
     # Restore focus to the original window and its non-sidebar pane

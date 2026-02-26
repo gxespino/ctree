@@ -23,3 +23,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cmux_bin="${CMUX_BIN:-${SCRIPT_DIR}/cmux}"
 tmux split-window -hb -l "$SIDEBAR_WIDTH" \
     "printf '\\033]2;${CMUX_PANE_TITLE}\\033\\\\'; exec ${cmux_bin}"
+
+# Focus back to the main (non-sidebar) pane
+main_pane=$(tmux list-panes -F '#{pane_id} #{pane_title}' | grep -v "$CMUX_PANE_TITLE" | head -1 | cut -d' ' -f1)
+if [ -n "$main_pane" ]; then
+    tmux select-pane -t "$main_pane"
+fi
