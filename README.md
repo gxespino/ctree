@@ -11,7 +11,7 @@ CTree shows all your Claude Code sessions in a sidebar panel, with real-time sta
 - **Git integration** — shows branch name and diff stats for each session
 - **Global sidebar** — toggle opens/closes in all tmux windows simultaneously
 - **Jump to unread** — quickly switch to the session that needs your attention (`tab`)
-- **Bell notifications** — chime when a session finishes or needs input
+- **Bell notifications** — chime when a session finishes or needs input (`m` to mute)
 
 ## Status Indicators
 
@@ -26,31 +26,48 @@ CTree shows all your Claude Code sessions in a sidebar panel, with real-time sta
 
 ## Installation
 
+### Prerequisites
+
+- [Go 1.25+](https://go.dev/dl/)
+- [tmux](https://github.com/tmux/tmux)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+
+### Build & install
+
 ```bash
 git clone https://github.com/gxespino/ctree.git
 cd ctree
 make install
 ```
 
-This installs `ctree`, `ctree-toggle`, and `ctree-auto-open` to `~/.local/bin`.
+This installs `ctree`, `ctree-toggle`, and `ctree-auto-open` to `~/.local/bin`. Make sure `~/.local/bin` is in your `PATH`.
 
-### Setup hooks
+### Register Claude Code hooks
 
-Register Claude Code hooks (required for status detection):
+CTree needs hooks to detect session status in real-time. Run:
 
 ```bash
 ctree setup
 ```
 
-### tmux keybinding
+This writes hook entries into `~/.claude/settings.json` for the following Claude Code lifecycle events: `UserPromptSubmit`, `Stop`, `Notification`, `PermissionRequest`, `PostToolUse`, and `SessionEnd`. Running `ctree setup` again is safe — it replaces existing ctree hooks without duplicating them.
+
+### tmux configuration
 
 Add to `~/.tmux.conf`:
 
 ```tmux
+# Toggle CTree sidebar with prefix + p
 bind-key p run-shell "~/.local/bin/ctree-toggle"
 ```
 
-Then `prefix + p` toggles the sidebar.
+Then reload: `tmux source-file ~/.tmux.conf`
+
+`prefix + p` toggles the sidebar in all tmux windows simultaneously.
+
+#### Auto-open in new windows (optional)
+
+The sidebar auto-opens in new tmux windows while it's active — no extra config needed. This is handled automatically by `ctree-toggle` via a tmux `after-new-window` hook.
 
 ## Keybindings
 
@@ -60,6 +77,7 @@ Then `prefix + p` toggles the sidebar.
 | `enter` | Jump to selected session |
 | `tab` | Jump to most recent unread/paused session |
 | `p` | Toggle preview pane |
+| `m` | Toggle bell notifications (mute/unmute) |
 | `n` | Create new Claude workspace |
 | `r` | Refresh |
 | `/` | Filter sessions |
@@ -78,8 +96,18 @@ CTree uses Claude Code's [hooks system](https://docs.anthropic.com/en/docs/claud
 
 Process liveness is verified via the process tree on each poll cycle (250ms).
 
-## Requirements
+## Configuration
 
-- Go 1.25+
-- tmux
-- Claude Code
+CTree is zero-config by design. The few toggleable settings persist automatically:
+
+| Setting | Toggle | Persisted at |
+|---------|--------|-------------|
+| Preview pane | `p` | `~/.config/ctree/preview` |
+| Bell mute | `m` | `~/.config/ctree/bell-muted` |
+| Sidebar width | `CTREE_SIDEBAR_WIDTH` env var | — |
+
+All ctree instances sync toggle state from disk, so changes propagate across windows.
+
+## License
+
+[AGPL-3.0-or-later](LICENSE)
