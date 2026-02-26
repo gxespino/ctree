@@ -10,6 +10,7 @@ import (
 
 	"github.com/gxespino/ctree/internal/hookdata"
 	"github.com/gxespino/ctree/internal/slack"
+	"github.com/gxespino/ctree/internal/state"
 )
 
 // hookInput is the subset of Claude Code's hook JSON payload we parse.
@@ -41,14 +42,17 @@ func Run(event string) error {
 		_ = json.Unmarshal(data, &input) // best-effort
 	}
 
-	// Slack: handle permission requests (bidirectional) and notifications (one-way)
-	if event == "permission-request" {
-		if decision := handlePermissionRequest(input); decision != "" {
-			writeDecision(decision)
+	// Slack: handle permission requests (bidirectional) and notifications (one-way).
+	// Only fires when the user has toggled Slack on via the TUI (s key).
+	if state.GetSlack() {
+		if event == "permission-request" {
+			if decision := handlePermissionRequest(input); decision != "" {
+				writeDecision(decision)
+			}
 		}
-	}
-	if event == "notification" && input.NotificationType == "elicitation_dialog" {
-		handleNotification(input)
+		if event == "notification" && input.NotificationType == "elicitation_dialog" {
+			handleNotification(input)
+		}
 	}
 
 	status := mapEventToStatus(event, input.NotificationType)

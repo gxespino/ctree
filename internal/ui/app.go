@@ -37,6 +37,7 @@ type App struct {
 	previewContent string
 	previewPaneID  string
 	bellEnabled    bool
+	slackEnabled   bool
 
 	spinnerFrame *int
 }
@@ -75,6 +76,7 @@ func NewApp(s *state.PersistentState) App {
 		focused:      true,
 		showPreview:  state.GetPreview(),
 		bellEnabled:  state.GetBell(),
+		slackEnabled: state.GetSlack(),
 		spinnerFrame: frame,
 	}
 }
@@ -173,6 +175,11 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		state.SetBell(a.bellEnabled)
 		return a, nil
 
+	case key.Matches(msg, a.keys.ToggleSlack):
+		a.slackEnabled = !a.slackEnabled
+		state.SetSlack(a.slackEnabled)
+		return a, nil
+
 	case key.Matches(msg, a.keys.Preview):
 		a.showPreview = !a.showPreview
 		state.SetPreview(a.showPreview)
@@ -229,6 +236,7 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 		a.updateListSize()
 	}
 	a.bellEnabled = state.GetBell()
+	a.slackEnabled = state.GetSlack()
 
 	incoming := msg.windows
 
@@ -505,6 +513,10 @@ func (a App) renderFooter() string {
 	if !a.bellEnabled {
 		bellLabel = "muted"
 	}
+	slackLabel := "slack"
+	if a.slackEnabled {
+		slackLabel = "slack on"
+	}
 
 	// Each row: left binding (padded to colWidth) + right binding
 	colWidth := 18
@@ -525,9 +537,9 @@ func (a App) renderFooter() string {
 	sb.WriteString("\n")
 	sb.WriteString(row("enter", "jump", "p", previewLabel))
 	sb.WriteString("\n")
-	sb.WriteString(row("m", bellLabel, "n", "new"))
+	sb.WriteString(row("m", bellLabel, "s", slackLabel))
 	sb.WriteString("\n")
-	sb.WriteString(row("/", "filter", "q", "quit"))
+	sb.WriteString(row("n", "new", "q", "quit"))
 
 	return sb.String()
 }

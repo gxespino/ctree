@@ -107,3 +107,25 @@ func GetBell() bool {
 	_, err := os.Stat(bellMutedFlagPath())
 	return err != nil // no file = bells on
 }
+
+// slackFlagPath is a zero-byte file whose existence means "slack notifications on".
+// No file = slack OFF (default).
+func slackFlagPath() string {
+	return filepath.Join(configDir(), "slack-enabled")
+}
+
+// SetSlack persists the slack toggle so all ctree instances stay in sync.
+func SetSlack(on bool) {
+	if on {
+		_ = os.MkdirAll(configDir(), 0o755)
+		_ = os.WriteFile(slackFlagPath(), nil, 0o644)
+	} else {
+		_ = os.Remove(slackFlagPath())
+	}
+}
+
+// GetSlack reads the shared slack toggle state.
+func GetSlack() bool {
+	_, err := os.Stat(slackFlagPath())
+	return err == nil // no file = slack off
+}
