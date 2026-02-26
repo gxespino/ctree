@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -117,6 +118,11 @@ func newWorkspaceCmd() tea.Cmd {
 }
 
 // bellCmd plays a terminal bell (BEL character).
+// tea.Printf("\a") does not work because bubbletea silently drops
+// printLineMessages while the alternate screen is active.
 func bellCmd() tea.Cmd {
-	return tea.Printf("\a")
+	return func() tea.Msg {
+		os.Stderr.Write([]byte("\a"))
+		return nil
+	}
 }

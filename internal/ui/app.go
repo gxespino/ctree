@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,11 +36,14 @@ type App struct {
 	showPreview    bool
 	previewContent string
 	previewPaneID  string
+
+	spinnerFrame *int
 }
 
 // NewApp creates a new App.
 func NewApp(s *state.PersistentState) App {
-	delegate := newWindowDelegate()
+	frame := new(int)
+	delegate := newWindowDelegate(frame)
 	l := list.New([]list.Item{}, delegate, 40, 20)
 	l.Title = "CTree"
 	l.SetShowStatusBar(false)
@@ -69,6 +73,7 @@ func NewApp(s *state.PersistentState) App {
 		doneAt:       make(map[string]time.Time),
 		focused:      true,
 		showPreview:  state.GetPreview(),
+		spinnerFrame: frame,
 	}
 }
 
@@ -208,6 +213,7 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	a.err = nil
+	*a.spinnerFrame++
 
 	// Sync preview toggle from disk so all ctree instances stay in sync
 	if diskPreview := state.GetPreview(); diskPreview != a.showPreview {
@@ -315,6 +321,11 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
+
+	// Group sessions by project directory (stable sort preserves tmux order within groups)
+	sort.SliceStable(incoming, func(i, j int) bool {
+		return incoming[i].WorkingDir < incoming[j].WorkingDir
+	})
 
 	// Only update list items if something actually changed (prevents flash)
 	changed := len(incoming) != len(a.windows)

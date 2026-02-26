@@ -39,6 +39,12 @@ var (
 				BorderStyle(lipgloss.ThickBorder()).
 				BorderForeground(colorPurple)
 
+	needsInputItemStyle = lipgloss.NewStyle().
+				PaddingLeft(1).
+				BorderLeft(true).
+				BorderStyle(lipgloss.ThickBorder()).
+				BorderForeground(colorOrange)
+
 	windowNumStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colorMagenta)
@@ -84,5 +90,10 @@ var (
 
 	previewContentStyle = lipgloss.NewStyle().
 				Foreground(colorDimmed).
+				PaddingLeft(1)
+
+	groupHeaderStyle = lipgloss.NewStyle().
+				Foreground(colorGray).
+				Bold(true).
 				PaddingLeft(1)
 )
