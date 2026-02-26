@@ -58,12 +58,14 @@ func mapEventToStatus(event, notificationType string) string {
 	case "stop":
 		return "idle"
 	case "notification":
-		switch notificationType {
-		case "elicitation_dialog", "permission_prompt":
+		// Only map elicitation_dialog to "paused" (AskUserQuestion).
+		// Don't map permission_prompt here — PermissionRequest already
+		// handles that, and the delayed Notification can race with Stop
+		// and overwrite "idle" back to "paused".
+		if notificationType == "elicitation_dialog" {
 			return "paused"
-		default:
-			return "idle"
 		}
+		return "idle"
 	case "permission-request":
 		return "paused"
 	case "post-tool-use":
