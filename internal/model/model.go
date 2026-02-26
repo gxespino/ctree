@@ -12,6 +12,7 @@ type Status int
 const (
 	StatusUnknown Status = iota
 	StatusWorking        // Claude is actively processing
+	StatusPaused         // Claude is waiting for user input (permission, question)
 	StatusIdle           // At prompt, user has already seen output, nothing to do
 	StatusUnread         // New output since user last visited, needs attention
 	StatusDone           // Finished working, no input required from user
@@ -23,6 +24,8 @@ func (s Status) String() string {
 	switch s {
 	case StatusWorking:
 		return "Working…"
+	case StatusPaused:
+		return "Paused"
 	case StatusIdle:
 		return "Idle"
 	case StatusUnread:

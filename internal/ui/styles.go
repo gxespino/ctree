@@ -12,6 +12,7 @@ var (
 	colorYellow     = lipgloss.Color("#F59E0B")
 	colorRed        = lipgloss.Color("#EF4444")
 	colorBlue       = lipgloss.Color("#3B82F6")
+	colorOrange = lipgloss.Color("#F97316")
 	colorGray   = lipgloss.Color("#6B7280")
 	colorDimmed = lipgloss.Color("#4B5563")
 	colorWhite  = lipgloss.Color("#F9FAFB")
@@ -60,6 +61,7 @@ var (
 
 	statusStyles = map[model.Status]lipgloss.Style{
 		model.StatusWorking: lipgloss.NewStyle().Foreground(colorYellow).Bold(true),
+		model.StatusPaused:  lipgloss.NewStyle().Foreground(colorOrange).Bold(true),
 		model.StatusIdle:    lipgloss.NewStyle().Foreground(colorGray),
 		model.StatusUnread:  lipgloss.NewStyle().Foreground(colorBlue).Bold(true),
 		model.StatusDone:    lipgloss.NewStyle().Foreground(colorGreen),

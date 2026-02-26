@@ -14,17 +14,17 @@ import (
 	"github.com/gxespino/cmux/internal/tmux"
 )
 
-// idleThreshold is how many consecutive Idle detections are needed before
-// transitioning out of Working. Prevents false Idle from pane scraping
-// mid-redraw from triggering Working → Unread → Done cascades.
-const idleThreshold = 3
+
+// doneTimeout is how long Done persists before decaying to Idle.
+// Short enough to not get stuck, long enough to be visible.
+const doneTimeout = 15 * time.Second
 
 // App is the top-level Bubble Tea model.
 type App struct {
 	list         list.Model
 	windows      []model.Window
 	prevStatuses map[string]model.Status // windowID → last known status
-	idleCounts   map[string]int          // windowID → consecutive Idle polls
+	doneAt       map[string]time.Time    // windowID → when session entered Done
 	width        int
 	height       int
 	keys         keyMap
@@ -66,7 +66,7 @@ func NewApp(s *state.PersistentState) App {
 		keys:         defaultKeyMap(),
 		state:        s,
 		prevStatuses: prev,
-		idleCounts:   make(map[string]int),
+		doneAt:       make(map[string]time.Time),
 		focused:      true,
 		showPreview:  state.GetPreview(),
 	}
@@ -149,6 +149,15 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, jumpToWindowCmd(item.SessionName, item.WindowIndex)
 		}
 
+	case key.Matches(msg, a.keys.JumpUnread):
+		// Find the most recent session needing attention and jump to it
+		for _, w := range a.windows {
+			if w.Status == model.StatusPaused || w.Status == model.StatusUnread || w.Status == model.StatusDone {
+				return a, jumpToWindowCmd(w.SessionName, w.WindowIndex)
+			}
+		}
+		return a, nil
+
 	case key.Matches(msg, a.keys.NewWorkspace):
 		return a, newWorkspaceCmd()
 
@@ -221,27 +230,18 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	for i := range incoming {
 		w := &incoming[i]
 
-		// Working and Error pass through untouched; reset idle counter.
+		// Non-idle statuses pass through untouched.
+		// Paused = waiting for user input (permission, question).
 		if w.Status != model.StatusIdle {
-			delete(a.idleCounts, w.WindowID)
+			delete(a.doneAt, w.WindowID)
 			continue
 		}
 
 		prev, hasPrev := a.prevStatuses[w.WindowID]
 
 		switch {
-		case hasPrev && prev == model.StatusWorking:
-			// Debounce: require consecutive Idle detections before
-			// believing Claude actually stopped. Pane scraping can
-			// return false Idle during redraws.
-			a.idleCounts[w.WindowID]++
-			if a.idleCounts[w.WindowID] < idleThreshold {
-				w.Status = model.StatusWorking
-				continue
-			}
-			delete(a.idleCounts, w.WindowID)
-
-			// Confirmed idle → mark Unread, clear "seen" flag
+		case hasPrev && (prev == model.StatusWorking || prev == model.StatusPaused):
+			// Just finished working/paused → mark Unread, clear "seen" flag
 			w.Status = model.StatusUnread
 			delete(a.state.LastSeen, w.Target())
 
@@ -250,9 +250,11 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 			if w.IsActiveWindow {
 				a.state.MarkSeen(w.Target())
 				w.Status = model.StatusDone
+				a.doneAt[w.WindowID] = time.Now()
 			} else if _, seen := a.state.LastSeen[w.Target()]; seen {
 				// User jumped to it since last poll
 				w.Status = model.StatusDone
+				a.doneAt[w.WindowID] = time.Now()
 			} else {
 				w.Status = model.StatusUnread
 			}
@@ -261,10 +263,12 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 			if w.IsActiveWindow {
 				a.state.MarkSeen(w.Target())
 			}
-			if time.Since(w.LastActivity) < 5*time.Minute {
+			if t, ok := a.doneAt[w.WindowID]; ok && time.Since(t) < doneTimeout {
 				w.Status = model.StatusDone
+			} else {
+				delete(a.doneAt, w.WindowID)
 			}
-			// else stays Idle (quiet for a while)
+			// else decays to Idle
 
 		default:
 			// First poll or was already Idle — stay Idle
@@ -277,11 +281,19 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	// Persist state changes (seen flags, deletions) from the state machine above.
 	_ = state.Save(a.state)
 
-	// Detect Working → Unread transitions (chime notification)
+	// Detect transitions that need user attention (chime notification)
 	shouldChime := false
 	for _, w := range incoming {
 		prev, ok := a.prevStatuses[w.WindowID]
-		if ok && prev == model.StatusWorking && w.Status == model.StatusUnread {
+		if !ok {
+			continue
+		}
+		// Working/Paused → Unread (just finished)
+		if (prev == model.StatusWorking || prev == model.StatusPaused) && w.Status == model.StatusUnread {
+			shouldChime = true
+		}
+		// Working → Paused (needs input mid-task)
+		if prev == model.StatusWorking && w.Status == model.StatusPaused {
 			shouldChime = true
 		}
 	}
@@ -448,9 +460,9 @@ func (a App) View() string {
 			b.WriteString("\n")
 		}
 
-		b.WriteString(footerStyle.Render("j/k nav  enter jump  p close  q quit"))
+		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p close  q quit"))
 	} else {
-		b.WriteString(footerStyle.Render("j/k nav  enter jump  p preview  q quit"))
+		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p preview  q quit"))
 	}
 
 	content := b.String()

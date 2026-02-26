@@ -26,6 +26,9 @@ if [ ${#sidebar_panes[@]} -gt 0 ]; then
         tmux kill-pane -t "$pane_id" 2>/dev/null || true
     done
     tmux set-hook -gu after-new-window
+
+    # Kill any orphaned cmux processes that survived pane destruction
+    pkill -f "^${cmux_bin}$" 2>/dev/null || true
 else
     # No sidebars — open one in every window
     current_window=$(tmux display-message -p '#{window_id}')

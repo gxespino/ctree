@@ -14,10 +14,12 @@ const cmuxHookPrefix = "cmux hook"
 // hookEvents defines the Claude Code hooks we inject.
 // Each entry: event name → hook command argument.
 var hookEvents = map[string]string{
-	"UserPromptSubmit": "prompt-submit",
-	"Stop":             "stop",
-	"Notification":     "notification",
-	"SessionEnd":       "session-end",
+	"UserPromptSubmit":  "prompt-submit",
+	"Stop":              "stop",
+	"Notification":      "notification",
+	"PermissionRequest": "permission-request",
+	"PostToolUse":       "post-tool-use",
+	"SessionEnd":        "session-end",
 }
 
 // Run configures Claude Code hooks in ~/.claude/settings.json.

@@ -4,16 +4,10 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gxespino/cmux/internal/hookdata"
 	"github.com/gxespino/cmux/internal/model"
-	"github.com/gxespino/cmux/internal/tmux"
 )
-
-// hookFreshness is how old a hook status file can be before we fall back
-// to pane scraping. Must be comfortably longer than the poll interval.
-const hookFreshness = 30 * time.Second
 
 // processInfo holds parsed ps output for one process.
 type processInfo struct {
@@ -73,14 +67,14 @@ func findClaudeDescendant(parentPID int, procs map[int]processInfo, children map
 }
 
 // EnrichAll detects Claude status for all windows in a single pass.
-// Prefers hook-based status when available, falls back to pane scraping.
+// Uses hook-based status files written by Claude Code lifecycle events.
+// Process liveness is always verified via the process table.
 func EnrichAll(windows []model.Window) {
 	procs, children := buildProcessTable()
 	if procs == nil {
 		return
 	}
 
-	// Read all hook statuses in one pass
 	hookStatuses := hookdata.ReadAll()
 
 	for i := range windows {
@@ -95,26 +89,28 @@ func EnrichAll(windows []model.Window) {
 		w.IsClaudePane = true
 		w.ClaudePID = claudePID
 
-		// Prefer hook-based status if available and fresh
-		if hs, ok := hookStatuses[w.PaneID]; ok && !hs.IsStale(hookFreshness) {
-			w.Status = mapHookStatus(hs.Status, claudePID, procs)
+		if _, alive := procs[claudePID]; !alive {
+			w.Status = model.StatusExited
 			continue
 		}
 
-		// Fallback: pane scraping
-		w.Status = detectStatusFromPane(w.PaneID, claudePID, procs)
+		if hs, ok := hookStatuses[w.PaneID]; ok {
+			w.Status = mapHookStatus(hs.Status)
+		} else {
+			// No hook file yet — session predates hook setup or
+			// hasn't had any events. Default to Idle until a hook fires.
+			w.Status = model.StatusIdle
+		}
 	}
 }
 
-// mapHookStatus converts a hook status string to a model.Status,
-// always checking process liveness first.
-func mapHookStatus(hookStatus string, claudePID int, procs map[int]processInfo) model.Status {
-	if _, alive := procs[claudePID]; !alive {
-		return model.StatusExited
-	}
+// mapHookStatus converts a hook status string to a model.Status.
+func mapHookStatus(hookStatus string) model.Status {
 	switch hookStatus {
 	case "working":
 		return model.StatusWorking
+	case "paused":
+		return model.StatusPaused
 	case "idle":
 		return model.StatusIdle
 	case "stopped":
@@ -122,83 +118,4 @@ func mapHookStatus(hookStatus string, claudePID int, procs map[int]processInfo) 
 	default:
 		return model.StatusUnknown
 	}
-}
-
-// detectStatusFromPane reads captured pane output to determine Claude's status.
-//
-// Claude Code's status bar sits at the very bottom of the visible pane.
-// We capture the full visible pane, strip trailing empty lines, then check
-// the last few non-empty lines for status indicators:
-//
-//	Working:  "... (running) · esc to interrupt"
-//	Idle:     "... esc to interrupt"  (no "(running)")
-//
-// IMPORTANT: Only check the status bar region (bottom lines) for "(running)"
-// because the content area above may contain "(running)" from previous tool output.
-func detectStatusFromPane(paneID string, claudePID int, procs map[int]processInfo) model.Status {
-	if _, alive := procs[claudePID]; !alive {
-		return model.StatusExited
-	}
-
-	captured, err := tmux.CapturePaneVisible(paneID)
-	if err != nil {
-		return model.StatusUnknown
-	}
-
-	lines := strings.Split(captured, "\n")
-
-	// Strip trailing empty/whitespace-only lines to find the true bottom
-	lastNonEmpty := len(lines) - 1
-	for lastNonEmpty >= 0 && strings.TrimSpace(lines[lastNonEmpty]) == "" {
-		lastNonEmpty--
-	}
-	if lastNonEmpty < 0 {
-		return model.StatusUnknown
-	}
-
-	// Scan the last 5 non-empty lines from the bottom for the status bar.
-	// The status bar always contains "esc to interrupt" — that's the definitive marker.
-	// We avoid matching on "tokens" alone because Claude's output content can also
-	// contain that word, leading to false Working detection.
-	statusBarText := ""
-	scanned := 0
-	for i := lastNonEmpty; i >= 0 && scanned < 5; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
-			continue
-		}
-		scanned++
-		if strings.Contains(line, "esc to interrupt") {
-			statusBarText += " " + line
-		}
-	}
-
-	// Priority 1: Status bar contains "(running)" = actively working
-	if strings.Contains(statusBarText, "(running)") {
-		return model.StatusWorking
-	}
-
-	// Priority 2: Status bar has "esc to interrupt" without "(running)" = idle
-	if strings.Contains(statusBarText, "esc to interrupt") {
-		return model.StatusIdle
-	}
-
-	// Priority 3: Check last 8 non-empty lines for prompt or error
-	scanned = 0
-	for i := lastNonEmpty; i >= 0 && scanned < 8; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
-			continue
-		}
-		scanned++
-		if strings.Contains(line, "APIError") {
-			return model.StatusError
-		}
-		if strings.HasPrefix(line, "❯") {
-			return model.StatusIdle
-		}
-	}
-
-	// Default: alive but unclear - assume idle
-	return model.StatusIdle
 }

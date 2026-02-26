@@ -12,7 +12,8 @@ import (
 
 // hookInput is the subset of Claude Code's hook JSON payload we parse.
 type hookInput struct {
-	SessionID string `json:"session_id"`
+	SessionID        string `json:"session_id"`
+	NotificationType string `json:"notification_type"`
 }
 
 // Run handles the "cmux hook <event>" subcommand.
@@ -21,11 +22,9 @@ type hookInput struct {
 func Run(event string) error {
 	paneID := os.Getenv("TMUX_PANE")
 	if paneID == "" {
-		// Not in a tmux pane — nothing to do
 		return nil
 	}
 
-	// Read JSON from stdin (Claude Code sends hook payload)
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading stdin: %w", err)
@@ -36,9 +35,9 @@ func Run(event string) error {
 		_ = json.Unmarshal(data, &input) // best-effort
 	}
 
-	status := mapEventToStatus(event)
+	status := mapEventToStatus(event, input.NotificationType)
 	if status == "" {
-		return nil // unknown event, silently ignore
+		return nil
 	}
 
 	return hookdata.Write(hookdata.HookStatus{
@@ -50,14 +49,25 @@ func Run(event string) error {
 }
 
 // mapEventToStatus converts a hook event name to a status string.
-func mapEventToStatus(event string) string {
+// For notification events, notificationType distinguishes between
+// idle notifications and input-needed notifications (elicitation, permission).
+func mapEventToStatus(event, notificationType string) string {
 	switch event {
 	case "prompt-submit":
 		return "working"
 	case "stop":
 		return "idle"
 	case "notification":
-		return "idle"
+		switch notificationType {
+		case "elicitation_dialog", "permission_prompt":
+			return "paused"
+		default:
+			return "idle"
+		}
+	case "permission-request":
+		return "paused"
+	case "post-tool-use":
+		return "working"
 	case "session-end":
 		return "stopped"
 	default:
