@@ -178,7 +178,7 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.ToggleSlack):
 		a.slackEnabled = !a.slackEnabled
 		state.SetSlack(a.slackEnabled)
-		return a, nil
+		return a, slackNotifyCmd(a.slackEnabled)
 
 	case key.Matches(msg, a.keys.Preview):
 		a.showPreview = !a.showPreview

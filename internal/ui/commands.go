@@ -11,6 +11,7 @@ import (
 	"github.com/gxespino/ctree/internal/git"
 	"github.com/gxespino/ctree/internal/hookdata"
 	"github.com/gxespino/ctree/internal/model"
+	"github.com/gxespino/ctree/internal/slack"
 	"github.com/gxespino/ctree/internal/tmux"
 )
 
@@ -114,6 +115,22 @@ func newWorkspaceCmd() tea.Cmd {
 	return func() tea.Msg {
 		err := tmux.NewClaudeWindow("", "")
 		return newWorkspaceResultMsg{err: err}
+	}
+}
+
+// slackNotifyCmd sends a status message to the Slack channel.
+func slackNotifyCmd(enabled bool) tea.Cmd {
+	return func() tea.Msg {
+		cfg, err := slack.LoadConfig()
+		if cfg == nil || err != nil {
+			return nil
+		}
+		if enabled {
+			_, _ = slack.SendMessage(cfg, ":large_green_circle: ctree Slack notifications *enabled*")
+		} else {
+			_, _ = slack.SendMessage(cfg, ":red_circle: ctree Slack notifications *disabled*")
+		}
+		return nil
 	}
 }
 
