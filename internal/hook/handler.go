@@ -98,10 +98,10 @@ func handlePermissionRequest(input hookInput) string {
 	reply, err := slack.WaitForReply(cfg, threadTS, 5*time.Minute)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ctree: slack poll failed: %v\n", err)
-		return "ask"
+		return ""
 	}
 	if reply == "" {
-		return "ask" // timeout, fall through to terminal
+		return "" // timeout, fall through to terminal
 	}
 
 	return parseDecision(reply)
@@ -118,11 +118,18 @@ func handleNotification(input hookInput) {
 }
 
 // writeDecision outputs a permission decision as JSON to stdout for Claude Code.
+// PermissionRequest hooks use decision.behavior ("allow"/"deny"), not permissionDecision.
 func writeDecision(decision string) {
+	output := map[string]any{
+		"behavior": decision,
+	}
+	if decision == "deny" {
+		output["message"] = "Denied via Slack"
+	}
 	resp := map[string]any{
 		"hookSpecificOutput": map[string]any{
-			"permissionDecision":       decision,
-			"permissionDecisionReason": "Decided via Slack",
+			"hookEventName": "PermissionRequest",
+			"decision":      output,
 		},
 	}
 	_ = json.NewEncoder(os.Stdout).Encode(resp)
@@ -175,14 +182,13 @@ func formatToolInput(input map[string]any) string {
 }
 
 // parseDecision normalizes a Slack reply to a Claude permission decision.
+// PermissionRequest hooks only support "allow" or "deny".
 func parseDecision(reply string) string {
 	switch strings.ToLower(strings.TrimSpace(reply)) {
 	case "allow", "yes", "y", "approve", "ok":
 		return "allow"
-	case "deny", "no", "n", "reject", "block":
-		return "deny"
 	default:
-		return "ask"
+		return "deny"
 	}
 }
 
