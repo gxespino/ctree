@@ -40,6 +40,18 @@ func Run(event string) error {
 		return nil
 	}
 
+	// Don't let "idle" (from Stop) overwrite a recent "paused" (from
+	// PermissionRequest). Both fire nearly simultaneously when Claude
+	// shows a permission dialog — Stop fires because Claude "stopped
+	// responding", but the session is actually waiting for user input.
+	if status == "idle" {
+		if existing, _ := hookdata.Read(paneID); existing != nil {
+			if existing.Status == "paused" && time.Since(existing.Timestamp) < 10*time.Second {
+				return nil
+			}
+		}
+	}
+
 	return hookdata.Write(hookdata.HookStatus{
 		PaneID:    paneID,
 		SessionID: input.SessionID,
