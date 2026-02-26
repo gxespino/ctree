@@ -5,20 +5,26 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gxespino/ctree/internal/hookdata"
+	"github.com/gxespino/ctree/internal/slack"
 )
 
 // hookInput is the subset of Claude Code's hook JSON payload we parse.
 type hookInput struct {
-	SessionID        string `json:"session_id"`
-	NotificationType string `json:"notification_type"`
+	SessionID        string         `json:"session_id"`
+	NotificationType string         `json:"notification_type"`
+	ToolName         string         `json:"tool_name"`
+	ToolInput        map[string]any `json:"tool_input"`
+	CWD              string         `json:"cwd"`
 }
 
 // Run handles the "ctree hook <event>" subcommand.
 // Reads $TMUX_PANE for pane identification, reads Claude Code's JSON
 // payload from stdin, and writes the status to a hook data file.
+// For permission-request events, optionally forwards to Slack for remote approval.
 func Run(event string) error {
 	paneID := os.Getenv("TMUX_PANE")
 	if paneID == "" {
@@ -33,6 +39,16 @@ func Run(event string) error {
 	var input hookInput
 	if len(data) > 0 {
 		_ = json.Unmarshal(data, &input) // best-effort
+	}
+
+	// Slack: handle permission requests (bidirectional) and notifications (one-way)
+	if event == "permission-request" {
+		if decision := handlePermissionRequest(input); decision != "" {
+			writeDecision(decision)
+		}
+	}
+	if event == "notification" && input.NotificationType == "elicitation_dialog" {
+		handleNotification(input)
 	}
 
 	status := mapEventToStatus(event, input.NotificationType)
@@ -58,6 +74,112 @@ func Run(event string) error {
 		Status:    status,
 		Timestamp: time.Now(),
 	})
+}
+
+// handlePermissionRequest sends a Slack message and waits for a threaded reply.
+// Returns "allow", "deny", "ask", or "" (fall through to terminal).
+func handlePermissionRequest(input hookInput) string {
+	cfg, err := slack.LoadConfig()
+	if cfg == nil || err != nil {
+		return ""
+	}
+
+	text := formatPermissionMessage(input)
+	threadTS, err := slack.SendMessage(cfg, text)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ctree: slack send failed: %v\n", err)
+		return ""
+	}
+
+	reply, err := slack.WaitForReply(cfg, threadTS, 5*time.Minute)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ctree: slack poll failed: %v\n", err)
+		return "ask"
+	}
+	if reply == "" {
+		return "ask" // timeout, fall through to terminal
+	}
+
+	return parseDecision(reply)
+}
+
+// handleNotification sends a one-way Slack message when Claude needs input.
+func handleNotification(input hookInput) {
+	cfg, err := slack.LoadConfig()
+	if cfg == nil || err != nil {
+		return
+	}
+	text := ":bell: *Claude needs input*\nCheck your terminal — Claude is asking a question."
+	_, _ = slack.SendMessage(cfg, text)
+}
+
+// writeDecision outputs a permission decision as JSON to stdout for Claude Code.
+func writeDecision(decision string) {
+	resp := map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"permissionDecision":       decision,
+			"permissionDecisionReason": "Decided via Slack",
+		},
+	}
+	_ = json.NewEncoder(os.Stdout).Encode(resp)
+}
+
+func formatPermissionMessage(input hookInput) string {
+	var b strings.Builder
+	b.WriteString(":lock: *Permission Request*\n")
+
+	if input.ToolName != "" {
+		b.WriteString(fmt.Sprintf("*Tool:* `%s`\n", input.ToolName))
+	}
+	if input.CWD != "" {
+		b.WriteString(fmt.Sprintf("*Dir:* `%s`\n", input.CWD))
+	}
+
+	if input.ToolInput != nil {
+		detail := formatToolInput(input.ToolInput)
+		if detail != "" {
+			b.WriteString("```\n")
+			b.WriteString(detail)
+			b.WriteString("\n```\n")
+		}
+	}
+
+	b.WriteString("Reply in thread: *yes* or *no*")
+	return b.String()
+}
+
+// formatToolInput extracts a readable summary from the tool input.
+// For Bash, shows the command. For Edit/Write, shows the file path.
+// Falls back to indented JSON, truncated to 500 chars.
+func formatToolInput(input map[string]any) string {
+	if cmd, ok := input["command"].(string); ok {
+		return cmd
+	}
+	if fp, ok := input["file_path"].(string); ok {
+		return fp
+	}
+
+	data, err := json.MarshalIndent(input, "", "  ")
+	if err != nil {
+		return ""
+	}
+	s := string(data)
+	if len(s) > 500 {
+		s = s[:500] + "\n..."
+	}
+	return s
+}
+
+// parseDecision normalizes a Slack reply to a Claude permission decision.
+func parseDecision(reply string) string {
+	switch strings.ToLower(strings.TrimSpace(reply)) {
+	case "allow", "yes", "y", "approve", "ok":
+		return "allow"
+	case "deny", "no", "n", "reject", "block":
+		return "deny"
+	default:
+		return "ask"
+	}
 }
 
 // mapEventToStatus converts a hook event name to a status string.

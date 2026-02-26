@@ -11,6 +11,7 @@ build:
 install: build
 	mkdir -p $(INSTALL_DIR)
 	cp bin/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
+	codesign -s - $(INSTALL_DIR)/$(BINARY_NAME) 2>/dev/null || true
 	cp scripts/ctree-toggle.sh $(INSTALL_DIR)/$(TOGGLE_SCRIPT)
 	cp scripts/ctree-auto-open.sh $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)
 	chmod +x $(INSTALL_DIR)/$(TOGGLE_SCRIPT) $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)

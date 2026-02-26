@@ -11,15 +11,19 @@ import (
 // ctreeHookPrefix identifies our hooks in the settings file.
 const ctreeHookPrefix = "ctree hook"
 
+type hookDef struct {
+	arg     string
+	timeout int
+}
+
 // hookEvents defines the Claude Code hooks we inject.
-// Each entry: event name → hook command argument.
-var hookEvents = map[string]string{
-	"UserPromptSubmit":  "prompt-submit",
-	"Stop":              "stop",
-	"Notification":      "notification",
-	"PermissionRequest": "permission-request",
-	"PostToolUse":       "post-tool-use",
-	"SessionEnd":        "session-end",
+var hookEvents = map[string]hookDef{
+	"UserPromptSubmit":  {arg: "prompt-submit", timeout: 5},
+	"Stop":              {arg: "stop", timeout: 5},
+	"Notification":      {arg: "notification", timeout: 5},
+	"PermissionRequest": {arg: "permission-request", timeout: 300},
+	"PostToolUse":       {arg: "post-tool-use", timeout: 5},
+	"SessionEnd":        {arg: "session-end", timeout: 5},
 }
 
 // Run configures Claude Code hooks in ~/.claude/settings.json.
@@ -45,9 +49,9 @@ func Run() error {
 		hooks = make(map[string]any)
 	}
 
-	for event, arg := range hookEvents {
-		command := fmt.Sprintf("%s hook %s", binPath, arg)
-		hooks[event] = mergeEventHooks(hooks[event], command)
+	for event, def := range hookEvents {
+		command := fmt.Sprintf("%s hook %s", binPath, def.arg)
+		hooks[event] = mergeEventHooks(hooks[event], command, def.timeout)
 	}
 
 	settings["hooks"] = hooks
@@ -136,7 +140,7 @@ func writeSettings(path string, settings map[string]any) error {
 
 // mergeEventHooks adds a ctree hook command to an event's matcher groups,
 // replacing any existing ctree hook for that event.
-func mergeEventHooks(existing any, command string) []any {
+func mergeEventHooks(existing any, command string, timeout int) []any {
 	groups, _ := existing.([]any)
 
 	// Remove any existing ctree matcher groups
@@ -153,7 +157,7 @@ func mergeEventHooks(existing any, command string) []any {
 			map[string]any{
 				"type":    "command",
 				"command": command,
-				"timeout": 5,
+				"timeout": timeout,
 			},
 		},
 	}
