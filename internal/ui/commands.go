@@ -120,9 +120,15 @@ func newWorkspaceCmd() tea.Cmd {
 // bellCmd plays a terminal bell (BEL character).
 // tea.Printf("\a") does not work because bubbletea silently drops
 // printLineMessages while the alternate screen is active.
+// Writing to stderr bypasses tmux's PTY so the bell is never propagated.
+// /dev/tty writes directly to the controlling terminal's PTY, which tmux
+// monitors for bell events.
 func bellCmd() tea.Cmd {
 	return func() tea.Msg {
-		os.Stderr.Write([]byte("\a"))
+		if f, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
+			f.Write([]byte("\a"))
+			f.Close()
+		}
 		return nil
 	}
 }
