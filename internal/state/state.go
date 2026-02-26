@@ -85,3 +85,25 @@ func GetPreview() bool {
 	_, err := os.Stat(previewFlagPath())
 	return err == nil
 }
+
+// bellMutedFlagPath is a zero-byte file whose existence means "bells muted".
+// No file = bells ON (preserves default behavior).
+func bellMutedFlagPath() string {
+	return filepath.Join(configDir(), "bell-muted")
+}
+
+// SetBell persists the bell toggle so all ctree instances stay in sync.
+func SetBell(on bool) {
+	if on {
+		_ = os.Remove(bellMutedFlagPath())
+	} else {
+		_ = os.MkdirAll(configDir(), 0o755)
+		_ = os.WriteFile(bellMutedFlagPath(), nil, 0o644)
+	}
+}
+
+// GetBell reads the shared bell toggle state.
+func GetBell() bool {
+	_, err := os.Stat(bellMutedFlagPath())
+	return err != nil // no file = bells on
+}

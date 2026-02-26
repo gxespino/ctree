@@ -160,7 +160,7 @@ func matcherGroupHasCtree(group any) bool {
 			continue
 		}
 		cmd, _ := hm["command"].(string)
-		if strings.HasPrefix(cmd, ctreeHookPrefix) {
+		if strings.Contains(cmd, ctreeHookPrefix) {
 			return true
 		}
 	}

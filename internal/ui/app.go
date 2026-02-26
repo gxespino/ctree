@@ -36,6 +36,7 @@ type App struct {
 	showPreview    bool
 	previewContent string
 	previewPaneID  string
+	bellEnabled    bool
 
 	spinnerFrame *int
 }
@@ -73,6 +74,7 @@ func NewApp(s *state.PersistentState) App {
 		doneAt:       make(map[string]time.Time),
 		focused:      true,
 		showPreview:  state.GetPreview(),
+		bellEnabled:  state.GetBell(),
 		spinnerFrame: frame,
 	}
 }
@@ -166,6 +168,11 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keys.NewWorkspace):
 		return a, newWorkspaceCmd()
 
+	case key.Matches(msg, a.keys.ToggleBell):
+		a.bellEnabled = !a.bellEnabled
+		state.SetBell(a.bellEnabled)
+		return a, nil
+
 	case key.Matches(msg, a.keys.Preview):
 		a.showPreview = !a.showPreview
 		state.SetPreview(a.showPreview)
@@ -215,12 +222,13 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	a.err = nil
 	*a.spinnerFrame++
 
-	// Sync preview toggle from disk so all ctree instances stay in sync
+	// Sync toggles from disk so all ctree instances stay in sync
 	if diskPreview := state.GetPreview(); diskPreview != a.showPreview {
 		a.showPreview = diskPreview
 		a.previewContent = ""
 		a.updateListSize()
 	}
+	a.bellEnabled = state.GetBell()
 
 	incoming := msg.windows
 
@@ -341,7 +349,7 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 	a.windows = incoming
 
 	var cmds []tea.Cmd
-	if shouldChime {
+	if shouldChime && a.bellEnabled {
 		cmds = append(cmds, bellCmd())
 	}
 	if changed {
@@ -471,9 +479,17 @@ func (a App) View() string {
 			b.WriteString("\n")
 		}
 
-		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p close  q quit"))
+		bellLabel := "m bell"
+		if !a.bellEnabled {
+			bellLabel = "m muted"
+		}
+		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p close  " + bellLabel + "  q quit"))
 	} else {
-		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p preview  q quit"))
+		bellLabel := "m bell"
+		if !a.bellEnabled {
+			bellLabel = "m muted"
+		}
+		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p preview  " + bellLabel + "  q quit"))
 	}
 
 	content := b.String()
