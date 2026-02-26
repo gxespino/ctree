@@ -52,6 +52,12 @@ ctree setup
 
 This writes hook entries into `~/.claude/settings.json` for the following Claude Code lifecycle events: `UserPromptSubmit`, `Stop`, `Notification`, `PermissionRequest`, `PostToolUse`, and `SessionEnd`. Running `ctree setup` again is safe — it replaces existing ctree hooks without duplicating them.
 
+Your original settings are backed up to `~/.claude/settings.pre-ctree.json` before any changes are made. To restore:
+
+```bash
+cp ~/.claude/settings.pre-ctree.json ~/.claude/settings.json
+```
+
 ### tmux configuration
 
 Add to `~/.tmux.conf`:

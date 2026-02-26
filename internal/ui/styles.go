@@ -96,4 +96,11 @@ var (
 				Foreground(colorGray).
 				Bold(true).
 				PaddingLeft(1)
+
+	footerKeyStyle = lipgloss.NewStyle().
+			Foreground(colorWhite).
+			Bold(true)
+
+	footerDescStyle = lipgloss.NewStyle().
+			Foreground(colorGray)
 )

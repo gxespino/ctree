@@ -24,8 +24,11 @@ var hookEvents = map[string]string{
 
 // Run configures Claude Code hooks in ~/.claude/settings.json.
 // Merges ctree hooks with existing hooks, preserving user-defined hooks.
+// Backs up existing settings to ~/.claude/settings.pre-ctree.json before modifying.
 func Run() error {
 	path := settingsPath()
+
+	backupSettings(path)
 
 	binPath, err := resolveBinaryPath()
 	if err != nil {
@@ -83,6 +86,17 @@ func Check() bool {
 		}
 	}
 	return true
+}
+
+// backupSettings copies the settings file to settings.pre-ctree.json.
+// Silently skips if the source doesn't exist (fresh install).
+func backupSettings(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	backup := filepath.Join(filepath.Dir(path), "settings.pre-ctree.json")
+	_ = os.WriteFile(backup, data, 0o644)
 }
 
 func settingsPath() string {

@@ -426,8 +426,8 @@ func (a App) handleGitResult(msg gitResultMsg) (tea.Model, tea.Cmd) {
 
 // previewHeight returns how many lines the preview panel content area gets.
 func (a App) previewHeight() int {
-	// border(2) + footer(2) + preview header(1) = 5 lines overhead
-	available := a.height - 7
+	// border(2) + footer(5) + preview header(1) + title(2) = 10 lines overhead
+	available := a.height - 10
 	if available < 4 {
 		return 4
 	}
@@ -435,16 +435,17 @@ func (a App) previewHeight() int {
 }
 
 // updateListSize recalculates the list dimensions based on whether preview is shown.
+// Footer is 5 lines (1 blank + 4 binding rows). Border is 2. Total overhead = 9.
 func (a *App) updateListSize() {
+	const overhead = 9 // border(2) + title(2) + footer(5)
 	if a.showPreview {
-		// List gets top half: total - border(2) - footer(2) - previewHeader(1) - previewContent
-		listHeight := a.height - 6 - a.previewHeight() - 1
+		listHeight := a.height - overhead - a.previewHeight() - 1
 		if listHeight < 4 {
 			listHeight = 4
 		}
 		a.list.SetSize(a.width-2, listHeight)
 	} else {
-		a.list.SetSize(a.width-2, a.height-6)
+		a.list.SetSize(a.width-2, a.height-overhead)
 	}
 }
 
@@ -479,18 +480,9 @@ func (a App) View() string {
 			b.WriteString("\n")
 		}
 
-		bellLabel := "m bell"
-		if !a.bellEnabled {
-			bellLabel = "m muted"
-		}
-		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p close  " + bellLabel + "  q quit"))
-	} else {
-		bellLabel := "m bell"
-		if !a.bellEnabled {
-			bellLabel = "m muted"
-		}
-		b.WriteString(footerStyle.Render("j/k nav  tab unread  enter jump  p preview  " + bellLabel + "  q quit"))
 	}
+
+	b.WriteString(a.renderFooter())
 
 	content := b.String()
 
@@ -498,4 +490,44 @@ func (a App) View() string {
 		return borderStyle.Width(a.width - 2).Height(a.height - 2).Render(content)
 	}
 	return borderDimStyle.Width(a.width - 2).Height(a.height - 2).Render(content)
+}
+
+// renderFooter builds the 2-column keybindings legend.
+func (a App) renderFooter() string {
+	key := func(k string) string { return footerKeyStyle.Render(k) }
+	desc := func(d string) string { return footerDescStyle.Render(d) }
+
+	previewLabel := "preview"
+	if a.showPreview {
+		previewLabel = "close"
+	}
+	bellLabel := "bell"
+	if !a.bellEnabled {
+		bellLabel = "muted"
+	}
+
+	// Each row: left binding (padded to colWidth) + right binding
+	colWidth := 18
+	row := func(lk, ld, rk, rd string) string {
+		left := key(lk) + desc(" "+ld)
+		// Pad left column to fixed width for alignment
+		pad := colWidth - len(lk) - 1 - len(ld)
+		if pad > 0 {
+			left += strings.Repeat(" ", pad)
+		}
+		right := key(rk) + desc(" "+rd)
+		return " " + left + right
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n")
+	sb.WriteString(row("j/k", "navigate", "tab", "unread"))
+	sb.WriteString("\n")
+	sb.WriteString(row("enter", "jump", "p", previewLabel))
+	sb.WriteString("\n")
+	sb.WriteString(row("m", bellLabel, "n", "new"))
+	sb.WriteString("\n")
+	sb.WriteString(row("/", "filter", "q", "quit"))
+
+	return sb.String()
 }
