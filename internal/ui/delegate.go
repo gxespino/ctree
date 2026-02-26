@@ -21,8 +21,8 @@ func newWindowDelegate(frame *int) windowDelegate {
 	return windowDelegate{spinnerFrame: frame}
 }
 
-func (d windowDelegate) Height() int                             { return 4 }
-func (d windowDelegate) Spacing() int                            { return 0 }
+func (d windowDelegate) Height() int                             { return 5 }
+func (d windowDelegate) Spacing() int                            { return 1 }
 func (d windowDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d windowDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -78,11 +78,25 @@ func (d windowDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 	if isGroupHead {
 		groupName := win.Title()
-		rule := strings.Repeat("─", 20)
-		line0 = groupHeaderStyle.Render("── " + groupName + " " + rule)
+		ruleWidth := m.Width() - 4
+		if ruleWidth < 3 {
+			ruleWidth = 3
+		}
+		rule := strings.Repeat("─", ruleWidth)
+		header := groupHeaderStyle.Render(groupName) + "\n" + groupHeaderStyle.Render(rule)
+		if index > 0 {
+			line0 = "\n\n" + header
+		} else {
+			line0 = header
+		}
 	}
 
-	content := line0 + "\n" + line1 + "\n" + line2 + "\n" + line3
+	var content string
+	if isGroupHead {
+		content = line0 + "\n" + line1 + "\n" + line2 + "\n" + line3
+	} else {
+		content = line1 + "\n" + line2 + "\n" + line3
+	}
 
 	if isSelected {
 		fmt.Fprint(w, selectedItemStyle.Render(content))
