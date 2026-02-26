@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// cmuxHookPrefix identifies our hooks in the settings file.
-const cmuxHookPrefix = "cmux hook"
+// ctreeHookPrefix identifies our hooks in the settings file.
+const ctreeHookPrefix = "ctree hook"
 
 // hookEvents defines the Claude Code hooks we inject.
 // Each entry: event name → hook command argument.
@@ -23,7 +23,7 @@ var hookEvents = map[string]string{
 }
 
 // Run configures Claude Code hooks in ~/.claude/settings.json.
-// Merges cmux hooks with existing hooks, preserving user-defined hooks.
+// Merges ctree hooks with existing hooks, preserving user-defined hooks.
 func Run() error {
 	path := settingsPath()
 
@@ -52,20 +52,20 @@ func Run() error {
 	return writeSettings(path, settings)
 }
 
-// resolveBinaryPath returns the absolute path to the running cmux binary.
+// resolveBinaryPath returns the absolute path to the running ctree binary.
 func resolveBinaryPath() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("resolving cmux binary path: %w", err)
+		return "", fmt.Errorf("resolving ctree binary path: %w", err)
 	}
 	resolved, err := filepath.EvalSymlinks(exe)
 	if err != nil {
-		return "", fmt.Errorf("resolving cmux binary path: %w", err)
+		return "", fmt.Errorf("resolving ctree binary path: %w", err)
 	}
 	return resolved, nil
 }
 
-// Check returns true if cmux hooks are already configured.
+// Check returns true if ctree hooks are already configured.
 func Check() bool {
 	settings, err := readSettings(settingsPath())
 	if err != nil {
@@ -78,7 +78,7 @@ func Check() bool {
 	}
 
 	for event := range hookEvents {
-		if !eventHasCmuxHook(hooks[event]) {
+		if !eventHasCtreeHook(hooks[event]) {
 			return false
 		}
 	}
@@ -120,21 +120,21 @@ func writeSettings(path string, settings map[string]any) error {
 	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
-// mergeEventHooks adds a cmux hook command to an event's matcher groups,
-// replacing any existing cmux hook for that event.
+// mergeEventHooks adds a ctree hook command to an event's matcher groups,
+// replacing any existing ctree hook for that event.
 func mergeEventHooks(existing any, command string) []any {
 	groups, _ := existing.([]any)
 
-	// Remove any existing cmux matcher groups
+	// Remove any existing ctree matcher groups
 	var kept []any
 	for _, g := range groups {
-		if !matcherGroupHasCmux(g) {
+		if !matcherGroupHasCtree(g) {
 			kept = append(kept, g)
 		}
 	}
 
 	// Add our matcher group
-	cmuxGroup := map[string]any{
+	ctreeGroup := map[string]any{
 		"hooks": []any{
 			map[string]any{
 				"type":    "command",
@@ -144,11 +144,11 @@ func mergeEventHooks(existing any, command string) []any {
 		},
 	}
 
-	return append(kept, cmuxGroup)
+	return append(kept, ctreeGroup)
 }
 
-// matcherGroupHasCmux checks if a matcher group contains a cmux hook.
-func matcherGroupHasCmux(group any) bool {
+// matcherGroupHasCtree checks if a matcher group contains a ctree hook.
+func matcherGroupHasCtree(group any) bool {
 	g, _ := group.(map[string]any)
 	if g == nil {
 		return false
@@ -160,18 +160,18 @@ func matcherGroupHasCmux(group any) bool {
 			continue
 		}
 		cmd, _ := hm["command"].(string)
-		if strings.HasPrefix(cmd, cmuxHookPrefix) {
+		if strings.HasPrefix(cmd, ctreeHookPrefix) {
 			return true
 		}
 	}
 	return false
 }
 
-// eventHasCmuxHook checks if an event already has a cmux hook configured.
-func eventHasCmuxHook(eventVal any) bool {
+// eventHasCtreeHook checks if an event already has a ctree hook configured.
+func eventHasCtreeHook(eventVal any) bool {
 	groups, _ := eventVal.([]any)
 	for _, g := range groups {
-		if matcherGroupHasCmux(g) {
+		if matcherGroupHasCtree(g) {
 			return true
 		}
 	}

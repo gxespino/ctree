@@ -6,11 +6,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gxespino/cmux/internal/detect"
-	"github.com/gxespino/cmux/internal/git"
-	"github.com/gxespino/cmux/internal/hookdata"
-	"github.com/gxespino/cmux/internal/model"
-	"github.com/gxespino/cmux/internal/tmux"
+	"github.com/gxespino/ctree/internal/detect"
+	"github.com/gxespino/ctree/internal/git"
+	"github.com/gxespino/ctree/internal/hookdata"
+	"github.com/gxespino/ctree/internal/model"
+	"github.com/gxespino/ctree/internal/tmux"
 )
 
 var pollCount int

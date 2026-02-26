@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gxespino/cmux/internal/model"
+	"github.com/gxespino/ctree/internal/model"
 )
 
 type windowDelegate struct{}

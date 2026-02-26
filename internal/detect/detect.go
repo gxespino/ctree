@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gxespino/cmux/internal/hookdata"
-	"github.com/gxespino/cmux/internal/model"
+	"github.com/gxespino/ctree/internal/hookdata"
+	"github.com/gxespino/ctree/internal/model"
 )
 
 // processInfo holds parsed ps output for one process.

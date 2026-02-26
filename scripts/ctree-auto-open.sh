@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ctree-auto-open.sh - Called by tmux after-new-window hook.
+# Opens a CTree sidebar in the new window if one exists in any other window.
+
+set -euo pipefail
+
+CTREE_PANE_TITLE="ctree-sidebar"
+SIDEBAR_WIDTH="${CTREE_SIDEBAR_WIDTH:-40}"
+
+# Check if the current (new) window already has a sidebar
+current_has=$(tmux list-panes -F '#{pane_title}' 2>/dev/null | grep -c "^${CTREE_PANE_TITLE}$" || true)
+if [ "$current_has" -gt 0 ]; then
+    exit 0
+fi
+
+# Check if any other window has a sidebar
+any_has=$(tmux list-panes -a -F '#{pane_title}' 2>/dev/null | grep -c "^${CTREE_PANE_TITLE}$" || true)
+if [ "$any_has" -eq 0 ]; then
+    exit 0
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ctree_bin="${CTREE_BIN:-${SCRIPT_DIR}/ctree}"
+tmux split-window -hb -l "$SIDEBAR_WIDTH" \
+    "printf '\\033]2;${CTREE_PANE_TITLE}\\033\\\\'; exec ${ctree_bin}"
+
+# Focus back to the main (non-sidebar) pane
+main_pane=$(tmux list-panes -F '#{pane_id} #{pane_title}' | grep -v "$CTREE_PANE_TITLE" | head -1 | cut -d' ' -f1)
+if [ -n "$main_pane" ]; then
+    tmux select-pane -t "$main_pane"
+fi

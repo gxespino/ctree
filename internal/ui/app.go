@@ -8,10 +8,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gxespino/cmux/internal/detect"
-	"github.com/gxespino/cmux/internal/model"
-	"github.com/gxespino/cmux/internal/state"
-	"github.com/gxespino/cmux/internal/tmux"
+	"github.com/gxespino/ctree/internal/detect"
+	"github.com/gxespino/ctree/internal/model"
+	"github.com/gxespino/ctree/internal/state"
+	"github.com/gxespino/ctree/internal/tmux"
 )
 
 
@@ -41,7 +41,7 @@ type App struct {
 func NewApp(s *state.PersistentState) App {
 	delegate := newWindowDelegate()
 	l := list.New([]list.Item{}, delegate, 40, 20)
-	l.Title = "cmux"
+	l.Title = "CTree"
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
@@ -209,7 +209,7 @@ func (a App) handlePollResult(msg pollResultMsg) (tea.Model, tea.Cmd) {
 
 	a.err = nil
 
-	// Sync preview toggle from disk so all cmux instances stay in sync
+	// Sync preview toggle from disk so all ctree instances stay in sync
 	if diskPreview := state.GetPreview(); diskPreview != a.showPreview {
 		a.showPreview = diskPreview
 		a.previewContent = ""

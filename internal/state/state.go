@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// PersistentState is serialized to ~/.config/cmux/state.json.
+// PersistentState is serialized to ~/.config/ctree/state.json.
 type PersistentState struct {
 	LastSeen map[string]time.Time `json:"last_seen"`
 	Version  int                  `json:"version"`
@@ -15,7 +15,7 @@ type PersistentState struct {
 
 func configDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "cmux")
+	return filepath.Join(home, ".config", "ctree")
 }
 
 func statePath() string {
@@ -70,7 +70,7 @@ func previewFlagPath() string {
 	return filepath.Join(configDir(), "preview")
 }
 
-// SetPreview persists the preview toggle so all cmux instances stay in sync.
+// SetPreview persists the preview toggle so all ctree instances stay in sync.
 func SetPreview(on bool) {
 	if on {
 		_ = os.MkdirAll(configDir(), 0o755)

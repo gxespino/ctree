@@ -2,7 +2,7 @@ package ui
 
 import (
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gxespino/cmux/internal/model"
+	"github.com/gxespino/ctree/internal/model"
 )
 
 var (

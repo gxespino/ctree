@@ -3,7 +3,7 @@ package ui
 import (
 	"time"
 
-	"github.com/gxespino/cmux/internal/model"
+	"github.com/gxespino/ctree/internal/model"
 )
 
 // tickMsg triggers the next poll cycle.

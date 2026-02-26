@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gxespino/cmux/internal/hookdata"
+	"github.com/gxespino/ctree/internal/hookdata"
 )
 
 // hookInput is the subset of Claude Code's hook JSON payload we parse.
@@ -16,7 +16,7 @@ type hookInput struct {
 	NotificationType string `json:"notification_type"`
 }
 
-// Run handles the "cmux hook <event>" subcommand.
+// Run handles the "ctree hook <event>" subcommand.
 // Reads $TMUX_PANE for pane identification, reads Claude Code's JSON
 // payload from stdin, and writes the status to a hook data file.
 func Run(event string) error {

@@ -1,4 +1,4 @@
-module github.com/gxespino/cmux
+module github.com/gxespino/ctree
 
 go 1.25.0
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gxespino/cmux/internal/model"
+	"github.com/gxespino/ctree/internal/model"
 )
 
 // Format string for list-panes. Fields separated by tab character.
@@ -65,7 +65,7 @@ func SelectWindow(sessionName string, windowIndex int) error {
 		return err
 	}
 
-	// Find the non-cmux pane and focus it
+	// Find the non-ctree pane and focus it
 	out, err := exec.Command("tmux", "list-panes", "-t", target,
 		"-F", "#{pane_id} #{pane_title}").Output()
 	if err != nil {
@@ -79,7 +79,7 @@ func SelectWindow(sessionName string, windowIndex int) error {
 		}
 		paneID := parts[0]
 		paneTitle := parts[1]
-		if paneTitle != "cmux-sidebar" {
+		if paneTitle != "ctree-sidebar" {
 			_ = exec.Command("tmux", "select-pane", "-t", paneID).Run()
 			return nil
 		}

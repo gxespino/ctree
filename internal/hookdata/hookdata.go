@@ -16,10 +16,10 @@ type HookStatus struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// Dir returns the hooks directory path (~/.config/cmux/hooks/).
+// Dir returns the hooks directory path (~/.config/ctree/hooks/).
 func Dir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "cmux", "hooks")
+	return filepath.Join(home, ".config", "ctree", "hooks")
 }
 
 // Write atomically writes a status file for the given pane.

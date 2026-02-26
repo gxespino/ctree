@@ -1,18 +1,18 @@
 .PHONY: build install setup clean test
 
-BINARY_NAME=cmux
-TOGGLE_SCRIPT=cmux-toggle
-AUTO_OPEN_SCRIPT=cmux-auto-open
+BINARY_NAME=ctree
+TOGGLE_SCRIPT=ctree-toggle
+AUTO_OPEN_SCRIPT=ctree-auto-open
 INSTALL_DIR=$(HOME)/.local/bin
 
 build:
-	go build -o bin/$(BINARY_NAME) ./cmd/cmux
+	go build -o bin/$(BINARY_NAME) ./cmd/ctree
 
 install: build
 	mkdir -p $(INSTALL_DIR)
 	cp bin/$(BINARY_NAME) $(INSTALL_DIR)/$(BINARY_NAME)
-	cp scripts/cmux-toggle.sh $(INSTALL_DIR)/$(TOGGLE_SCRIPT)
-	cp scripts/cmux-auto-open.sh $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)
+	cp scripts/ctree-toggle.sh $(INSTALL_DIR)/$(TOGGLE_SCRIPT)
+	cp scripts/ctree-auto-open.sh $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)
 	chmod +x $(INSTALL_DIR)/$(TOGGLE_SCRIPT) $(INSTALL_DIR)/$(AUTO_OPEN_SCRIPT)
 	@echo ""
 	@echo "Installed to $(INSTALL_DIR)"
